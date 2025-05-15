@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+numpy
+scikit-learn
+joblib
+web3
+py-solc-x
+pandas
+pydantic

@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import numpy as np
 import joblib
 from web3 import Web3
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
@@ -19,12 +20,13 @@ class TriggerData(BaseModel):
 
 # Configurar conexión a la red Ethereum local (Ganache o Hardhat)
 w3 = Web3(Web3.HTTPProvider("http://127.0.0.1:8545"))
-if not w3.isConnected():
+if not w3.is_connected():
     raise Exception("No se pudo conectar a la red Ethereum local. Asegúrate de que Ganache/Hardhat esté en ejecución.")
 
 # **IMPORTANTE**: La dirección y ABI del contrato deben ser actualizados 
 # después de desplegar el contrato inteligente con deploy.py.
-contract_address = "0xYourDeployedContractAddress"  # ← actualizar con la dirección desplegada
+contract_address = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0"
+ # ← actualizar con la dirección desplegada
 contract_abi = [
     {
       "inputs": [{"internalType": "bool","name": "_prediccion","type": "bool"}],
@@ -48,20 +50,25 @@ contract_abi = [
       "type": "function"
     },
     {
-      "anonymous": false,
-      "inputs": [{"indexed": false,"internalType": "bool","name": "prediccion","type": "bool"}],
+      "anonymous": False,
+      "inputs": [{"indexed": False,"internalType": "bool","name": "prediccion","type": "bool"}],
       "name": "PredictionUpdated",
       "type": "event"
     },
     {
-      "anonymous": false,
+      "anonymous": False,
       "inputs": [],
       "name": "ActionExecuted",
       "type": "event"
     }
 ]
-contract = w3.eth.contract(address=contract_address, abi=contract_abi)
 
+
+contract = w3.eth.contract(address=contract_address, abi=contract_abi)
+print("Contrato:", contract_address)
+print("ABI cargado:", type(contract_abi))
+print("Conexión:", w3.is_connected())
+print("Probar llamada:", contract.functions.lastPrediction().call())
 # Usar la primera cuenta de Ganache/Hardhat para las transacciones (privada en local)
 default_account = w3.eth.accounts[0]
 w3.eth.defaultAccount = default_account
@@ -84,3 +91,11 @@ def trigger(data: TriggerData):
     tx2 = contract.functions.actuar().transact({'from': default_account})
     receipt2 = w3.eth.wait_for_transaction_receipt(tx2)
     return {"status": "triggered", "prediction": data.prediction}
+
+@app.get("/status")
+def get_last_prediction():
+    try:
+        last_pred = contract.functions.lastPrediction().call()
+        return JSONResponse(content={"lastPrediction": bool(last_pred)})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
